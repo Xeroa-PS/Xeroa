@@ -19,6 +19,7 @@ public:
     [[nodiscard]] std::uint16_t GetPort() const;
 private:
     awaitable<void> AsyncOnReceive();
+    awaitable<void> ParsePacket(std::span<uint8_t> buffer);
 private:
     udp::socket m_Socket;
     udp::endpoint m_CurEndpoint;

@@ -22,7 +22,7 @@ void fail(beast::error_code ec, char const* what) {
 }
 
 HttpServer::HttpServer(asio::io_context& io_context, tcp::endpoint endpoint)
-    : io_context_(io_context), acceptor_(io_context, endpoint)
+    : io_context_(io_context), acceptor_(asio::make_strand(io_context))
 {
     beast::error_code ec;
 
@@ -53,8 +53,6 @@ HttpServer::HttpServer(asio::io_context& io_context, tcp::endpoint endpoint)
         fail(ec, "listen");
         return;
     }
-
-    run();
 }
 
 void HttpServer::run()

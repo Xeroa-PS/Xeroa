@@ -12,31 +12,25 @@
 
 int main()
 {
-    auto const address = asio::ip::make_address("127.0.0.1");
+    auto const address = asio::ip::make_address("0.0.0.0");
 
-    auto const port = static_cast<unsigned short>(std::atoi("25565"));
-    auto const port2 = static_cast<unsigned short>(std::atoi("25566"));
+    auto const dispatch_port = 8080;
+    auto const kcp_port = 8090;
 
-    asio::io_context io_context{ 4 };
+    int threads = 4;
 
-    GameServer KcpGameServer(io_context, udp::endpoint{ address, port2 });
-    std::make_shared<HttpServer>(io_context, tcp::endpoint{ address, port })
+    asio::io_context io_context{ threads };
+
+    std::make_shared<HttpServer>(io_context, tcp::endpoint{ address, dispatch_port })
         ->run();
 
-    asio::signal_set signals(io_context, SIGINT, SIGTERM);
-    signals.async_wait([&](auto, auto) { io_context.stop(); });
+    GameServer KcpGameServer(io_context, udp::endpoint{ address, kcp_port });
 
-    std::array<std::thread, 4> threads;
-
-    for (size_t i = 0; i < threads.max_size(); i++)
-    {
-        threads[i] = std::thread([&]() { io_context.run(); });
-    }
-
-    for (size_t i = 0; i < threads.max_size(); i++)
-    {
-        threads[i].join();
-    }
+    std::vector<std::thread> v;
+    v.reserve(threads - 1);
+    for (auto i = threads - 1; i > 0; --i)
+        v.emplace_back([&io_context] { io_context.run(); });
+    io_context.run();
 
 	return 0;
 }

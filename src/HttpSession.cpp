@@ -52,6 +52,18 @@ void handle_request(http::request<Body, http::basic_fields<Allocator>>&& req, Se
     if (req.target().empty() || req.target()[0] != '/' ||
         req.target().find("..") != beast::string_view::npos)
         return send(bad_request("Illegal request-target"));
+
+    http::response<http::string_body> res {
+        http::status::ok, req.version()
+    };
+
+    res.set(http::field::server, "Xeroa v0.1");
+    res.set(http::field::content_type, "text/html");
+    res.keep_alive(req.keep_alive());
+    res.body() = "Hello from Xeroa PS!";
+    res.prepare_payload();
+
+    return send(std::move(res));
 }
 
 void HttpSession::on_read(beast::error_code ec, std::size_t bytes_transferred) {
@@ -68,8 +80,7 @@ void HttpSession::on_read(beast::error_code ec, std::size_t bytes_transferred) {
     handle_request(std::move(req_), lambda_);
 }
 
-void HttpSession::on_write(bool close, beast::error_code ec,
-    std::size_t bytes_transferred) {
+void HttpSession::on_write(bool close, beast::error_code ec, std::size_t bytes_transferred) {
     boost::ignore_unused(bytes_transferred);
 
     if (ec)

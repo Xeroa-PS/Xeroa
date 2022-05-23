@@ -36,12 +36,24 @@ awaitable<void> GameServer::AsyncOnReceive()
         for (;;)
         {
             size_t bufSize = co_await this->m_Socket.async_receive_from(asio::buffer(pktBuffer), this->m_CurEndpoint, use_awaitable);
-
-            //co_await this->ParsePacket({ pktBuffer.data(), bufSize });
+            co_await this->ParsePacket({ pktBuffer.data(), bufSize });
         }
     }
     catch (const std::exception& e)
     {
-        //Log::Warning("[HolepunchServer::onAsyncReceive] threw {}\n", e.what());
     }
+}
+
+awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
+{
+    try
+    {
+        auto str = std::string(buffer.begin(), buffer.end());
+        printf(str.c_str());
+    }
+    catch (const std::exception& e)
+    {
+    }
+
+    co_return;
 }
