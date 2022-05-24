@@ -1,6 +1,8 @@
 #include "HttpServer.h"
 #include "HttpSession.h"
 
+#include "Router.hpp"
+
 #include <algorithm>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>

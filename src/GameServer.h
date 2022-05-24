@@ -7,6 +7,9 @@
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/udp.hpp>
+#include <boost/unordered_map.hpp>
+
+#include <ikcp.h>
 
 namespace asio = boost::asio;
 using boost::asio::awaitable;
@@ -23,6 +26,7 @@ private:
 private:
     udp::socket m_Socket;
     udp::endpoint m_CurEndpoint;
+    boost::unordered_map<asio::detail::socket_addr_type*, ikcpcb*> clients;
 };
 
 #endif  // __GAMESERVER_H_

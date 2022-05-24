@@ -13,18 +13,39 @@ using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
-// add kcp to this shit
+
+//What the fuck is going on
+typedef struct yourmom {
+    udp::endpoint endpoint;
+    udp::socket *socket;
+};
+
+int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
+{
+    if(user){
+        auto lol = (yourmom*)user;
+        //funky
+        co_spawn(
+            lol->socket->get_executor(),
+            [lol,buf,len]{
+                return lol->socket->async_send_to(asio::const_buffer(buf,len), lol->endpoint, use_awaitable);
+            },
+            detached
+        );
+    }
+    return 0;
+}
 
 GameServer::GameServer(boost::asio::io_context& io_context, const udp::endpoint& endpoint) : m_Socket(io_context, endpoint)
 {
     co_spawn(
         this->m_Socket.get_executor(),
-        [this] { 
-            return this->AsyncOnReceive(); 
+        [this] {
+            return this->AsyncOnReceive();
         }, detached);
 
-    //Log::Info("[GameServer::GameServer] listening on {}:{}\n",
-    //    endpoint.address().to_string(), endpoint.port());
+    printf("[GameServer::GameServer] listening on %s:%d\n",
+        endpoint.address().to_string().c_str(), endpoint.port());
 }
 
 awaitable<void> GameServer::AsyncOnReceive()
@@ -48,12 +69,26 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
 {
     try
     {
-        auto str = std::string(buffer.begin(), buffer.end());
-        printf(str.c_str());
+        // new connection
+        if (clients.find(this->m_CurEndpoint.data()) == clients.end())
+        {
+            yourmom lol{
+                this->m_CurEndpoint,
+                &this->m_Socket};
+
+            IKCPCB* kcp = ikcp_create(1, (void*)&lol);
+            ikcp_nodelay(kcp, 1, 10, 2, 1);
+            
+            kcp->output = udp_output;
+            clients[this->m_CurEndpoint.data()] = kcp;
+        }
+        //windy the clients
+        else
+        {
+        }
     }
     catch (const std::exception& e)
     {
     }
-
-    co_return;
+    co_return; //this is useless this is bullshit it's a fucking void function WHY
 }

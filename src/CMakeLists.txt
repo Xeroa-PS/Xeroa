@@ -7,6 +7,7 @@ find_package(Threads REQUIRED)
 find_package(Boost 1.73.0 COMPONENTS program_options REQUIRED)
 
 set (XEROA_SOURCES
+	${CMAKE_SOURCE_DIR}/external/kcp/ikcp.c
 	./main.cpp
 	./GameServer.cpp
 	./HttpServer.cpp
@@ -17,6 +18,7 @@ add_executable (Xeroa ${XEROA_SOURCES})
 
 target_include_directories (Xeroa PUBLIC
 	${Boost_INCLUDE_DIR}
+	${CMAKE_SOURCE_DIR}/external/kcp
 	.
 )
 
