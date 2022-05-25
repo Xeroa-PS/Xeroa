@@ -23,7 +23,8 @@ int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
             [ctx,buf,len]
             {
                 return ctx->socket->async_send_to(asio::const_buffer(buf,len), ctx->endpoint, use_awaitable);
-            }, detached);
+            }
+            , detached);
     }
     return 0;
 }

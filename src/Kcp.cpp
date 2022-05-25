@@ -1,13 +1,6 @@
 #include "Kcp.h"
 #include <memory>
 
-
-awaitable<void> sleep(const int d)
-{
-	std::this_thread::sleep_for(std::chrono::milliseconds(d));
-	co_return;
-}
-
 Kcp::Kcp(int conv, int token, void* ctx_ptr)
 {
 	_Conv = conv;
@@ -21,14 +14,27 @@ void Kcp::Background()
 	{
 		if (_State != Kcp::ConnectionState::CONNECTED)
 			return;
-
-		int dur;
+		
 		kcplock.lock();
-		dur = (int)(ikcp_check(kcp, (unsigned int)(time(0) - startTime)) & 0xFFFF);
+
+		//int dur;
+		//dur = (int)(ikcp_check(kcp, (unsigned int)(time(0) - startTime)) & 0xFFFF);
+
+		ikcp_update(kcp, time(0));
+		
+		/*
+		int sz = ikcp_peeksize(kcp);
+		if (sz)
+		{
+			char* buf = (char*)malloc(sz);
+			int bufSz = 0;
+			ikcp_recv(kcp, buf, bufSz);
+			printf("Received KCP Message: %s", buf);
+		}
+		*/
 		kcplock.unlock();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		ikcp_update(kcp, (unsigned int)(startTime - time(0)));
 	}
 }
 
@@ -129,7 +135,7 @@ Handshake::Handshake()
 	Magic2 = 0;
 
 	Conv = 1;
-	Data = 123;
+	Data = 1234567890;
 	Token = 1;
 }
 
