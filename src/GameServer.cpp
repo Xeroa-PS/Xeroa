@@ -13,25 +13,17 @@ using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
-//What the fuck is going on
-typedef struct yourmom {
-    udp::endpoint endpoint;
-    udp::socket *socket;
-};
-
 int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
 {
-    if(user){
-        auto lol = (yourmom*)user;
-        //funky
+    if(user)
+    {
+        auto ctx = (Context*)user;
         co_spawn(
-            lol->socket->get_executor(),
-            [lol,buf,len]{
-                return lol->socket->async_send_to(asio::const_buffer(buf,len), 
-                    lol->endpoint, use_awaitable);
-            },
-            detached
-        );
+            ctx->socket->get_executor(),
+            [ctx,buf,len]
+            {
+                return ctx->socket->async_send_to(asio::const_buffer(buf,len), ctx->endpoint, use_awaitable);
+            }, detached);
     }
     return 0;
 }
@@ -70,47 +62,32 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
     BufferView Packet(buffer);
     try
     {
-        // new connection
-        // also handle handshake pls
-                    //yourmom lol{
-            //    this->m_CurEndpoint,
-            //    &this->m_Socket};
-
-            //IKCPCB* kcp = ikcp_create(1, (void*)&lol);
-            //ikcp_nodelay(kcp, 1, 10, 2, 1);
-            //
-            //kcp->output = udp_output;
-            //
-
-
         if (clients.find( this->m_CurEndpoint.data() ) == clients.end() )
         {
-            if(buffer.size_bytes() <= 20) {
-                switch (Packet.Read<std::uint8_t>())
-                {
-                    case 0xff:
-                        const char* magic = "\x00\x00\x01\x45\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x14\x51\x45\x45";
+            Handshake handshake;
+            if (handshake.Decode(Packet, true))
+            {
+                printf("[GameServer::ParsePacket] New connection from %s:%d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port());
 
-                        co_await this->m_Socket.async_send_to(asio::const_buffer(magic, 21),
-                            this->m_CurEndpoint, use_awaitable);
 
-                        Kcp* kcp = new Kcp();
-                        kcp->SetCallback(udp_output);
+                Context* ctx = (Context*)malloc(sizeof(Context));
+                ctx->endpoint = m_CurEndpoint;
+                ctx->socket = &m_Socket;
 
-                        clients[this->m_CurEndpoint.data()] = kcp;
+                Kcp* kcp = new Kcp();
+                kcp->SetCallback(udp_output);
+                kcp->SetContext(ctx);
+                kcp->AcceptNonblock();
+                kcp->Input((char*)buffer.data(), buffer.size());
 
-                        kcp->Input( (char*)Packet.m_DataView.data(),
-                            buffer.size());
-
-                    case 404:
-                        //Client disconnected
-                        break;
-                }
+                clients[this->m_CurEndpoint.data()] = kcp;
             }
         }
         //windy the clients 
         else
         {
+            auto client = clients[this->m_CurEndpoint.data()];
+            printf("[GameServer::GameServer] Message from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), (char*)buffer.data());
         }
     }
     catch (const std::exception& e)

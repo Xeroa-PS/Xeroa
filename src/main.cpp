@@ -17,7 +17,7 @@ int main()
     auto const dispatch_port = 8080;
     auto const kcp_port = 8090;
 
-    int threads = 4;
+    int threads = 16;
 
     asio::io_context io_context{ threads };
 
