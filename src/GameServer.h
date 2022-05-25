@@ -9,7 +9,8 @@
 #include <boost/asio/ip/udp.hpp>
 #include <boost/unordered_map.hpp>
 
-#include <ikcp.h>
+#include <Kcp.h>
+#include "BufferView.h"
 
 namespace asio = boost::asio;
 using boost::asio::awaitable;
@@ -26,7 +27,7 @@ private:
 private:
     udp::socket m_Socket;
     udp::endpoint m_CurEndpoint;
-    boost::unordered_map<asio::detail::socket_addr_type*, ikcpcb*> clients;
+    boost::unordered_map<asio::detail::socket_addr_type*, Kcp*> clients;
 };
 
 #endif  // __GAMESERVER_H_

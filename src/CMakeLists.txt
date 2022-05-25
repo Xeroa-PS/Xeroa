@@ -12,6 +12,8 @@ set (XEROA_SOURCES
 	./GameServer.cpp
 	./HttpServer.cpp
 	./HttpSession.cpp
+	./Kcp.cpp
+	./BufferView.cpp
 )
 
 add_executable (Xeroa ${XEROA_SOURCES})

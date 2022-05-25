@@ -13,7 +13,6 @@ using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
-
 //What the fuck is going on
 typedef struct yourmom {
     udp::endpoint endpoint;
@@ -28,7 +27,8 @@ int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
         co_spawn(
             lol->socket->get_executor(),
             [lol,buf,len]{
-                return lol->socket->async_send_to(asio::const_buffer(buf,len), lol->endpoint, use_awaitable);
+                return lol->socket->async_send_to(asio::const_buffer(buf,len), 
+                    lol->endpoint, use_awaitable);
             },
             detached
         );
@@ -67,22 +67,48 @@ awaitable<void> GameServer::AsyncOnReceive()
 
 awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
 {
+    BufferView Packet(buffer);
     try
     {
         // new connection
-        if (clients.find(this->m_CurEndpoint.data()) == clients.end())
-        {
-            yourmom lol{
-                this->m_CurEndpoint,
-                &this->m_Socket};
+        // also handle handshake pls
+                    //yourmom lol{
+            //    this->m_CurEndpoint,
+            //    &this->m_Socket};
 
-            IKCPCB* kcp = ikcp_create(1, (void*)&lol);
-            ikcp_nodelay(kcp, 1, 10, 2, 1);
-            
-            kcp->output = udp_output;
-            clients[this->m_CurEndpoint.data()] = kcp;
+            //IKCPCB* kcp = ikcp_create(1, (void*)&lol);
+            //ikcp_nodelay(kcp, 1, 10, 2, 1);
+            //
+            //kcp->output = udp_output;
+            //
+
+
+        if (clients.find( this->m_CurEndpoint.data() ) == clients.end() )
+        {
+            if(buffer.size_bytes() <= 20) {
+                switch (Packet.Read<std::uint8_t>())
+                {
+                    case 0xff:
+                        const char* magic = "\x00\x00\x01\x45\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x14\x51\x45\x45";
+
+                        co_await this->m_Socket.async_send_to(asio::const_buffer(magic, 21),
+                            this->m_CurEndpoint, use_awaitable);
+
+                        Kcp* kcp = new Kcp();
+                        kcp->SetCallback(udp_output);
+
+                        clients[this->m_CurEndpoint.data()] = kcp;
+
+                        kcp->Input( (char*)Packet.m_DataView.data(),
+                            buffer.size());
+
+                    case 404:
+                        //Client disconnected
+                        break;
+                }
+            }
         }
-        //windy the clients
+        //windy the clients 
         else
         {
         }
