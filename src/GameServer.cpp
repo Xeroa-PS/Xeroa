@@ -63,6 +63,7 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
     BufferView Packet(buffer);
     try
     {
+        printf("[GameServer::ParsePacket] Received data from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), buffer.data());
         if (clients.find( this->m_CurEndpoint.data() ) == clients.end() )
         {
             Handshake handshake;
@@ -88,6 +89,7 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
         else
         {
             auto client = clients[this->m_CurEndpoint.data()];
+            client->Input((char*)buffer.data(), buffer.size());
             printf("[GameServer::GameServer] Message from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), (char*)buffer.data());
         }
     }

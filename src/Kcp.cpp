@@ -6,6 +6,7 @@ Kcp::Kcp(int conv, int token, void* ctx_ptr)
 	_Conv = conv;
 	_Token = token;
 	startTime = time(0);
+	_recvBuf = (char*)malloc(65535);
 }
 
 void Kcp::Background()
@@ -22,16 +23,14 @@ void Kcp::Background()
 
 		ikcp_update(kcp, time(0));
 		
-		/*
 		int sz = ikcp_peeksize(kcp);
-		if (sz)
+		if (sz && sz != -1)
 		{
-			char* buf = (char*)malloc(sz);
 			int bufSz = 0;
-			ikcp_recv(kcp, buf, bufSz);
-			printf("Received KCP Message: %s", buf);
+			ikcp_recv(kcp, _recvBuf, bufSz);
+			//printf("Received KCP Message: %s", _recvBuf);
 		}
-		*/
+
 		kcplock.unlock();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -76,6 +75,9 @@ int Kcp::Input(char* buffer, long len)
 			_Conv = (time(0) & 0xFFFFFFFF);
 			_Token = 0xFFCCEEBB ^ ((time(0) >> 32) & 0xFFFFFFFF);
 
+			handshake.Magic1 = handshake.MAGIC_SEND_BACK_CONV[0];
+			handshake.Magic2 = handshake.MAGIC_SEND_BACK_CONV[1];
+
 			handshake.Conv = _Conv;
 			handshake.Token = _Token;
 			handshake_result = handshake.Encode();
@@ -112,7 +114,7 @@ void Kcp::Initialize()
 {
 	kcp = ikcp_create(_Conv, _Token, _ctx);
 	ikcp_nodelay(kcp, 1, 10, 2, 0);
-	ikcp_wndsize(kcp, 128, 128);
+	ikcp_wndsize(kcp, 256, 256);
 	ikcp_setoutput(kcp, _callback_ptr);
 	_State = Kcp::ConnectionState::CONNECTED;
 	background_thread = std::thread(&Kcp::Background, this);
@@ -158,11 +160,11 @@ bool Handshake::Decode(BufferView buffer, bool verifyMagic)
 std::span<uint8_t> Handshake::Encode()
 {
 	auto& bufRef = this->GetBuffer();
-	bufRef.Write<std::uint8_t>(Magic1, true);
-	bufRef.Write<std::uint8_t>(Conv, true);
-	bufRef.Write<std::uint8_t>(Token, true);
-	bufRef.Write<std::uint8_t>(Data, true);
-	bufRef.Write<std::uint8_t>(Magic2, true);
+	bufRef.Write<std::uint32_t>(Magic1, true);
+	bufRef.Write<std::uint32_t>(Conv, true);
+	bufRef.Write<std::uint32_t>(Token, true);
+	bufRef.Write<std::uint32_t>(Data, true);
+	bufRef.Write<std::uint32_t>(Magic2, true);
 
 	return { bufRef.GetDataOwnership().data(), 20};
 }

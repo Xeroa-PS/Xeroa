@@ -15,7 +15,7 @@ int main()
     auto const address = asio::ip::make_address("0.0.0.0");
 
     auto const dispatch_port = 8080;
-    auto const kcp_port = 8090;
+    auto const kcp_port = 2212;
 
     int threads = 16;
 

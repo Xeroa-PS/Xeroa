@@ -57,13 +57,14 @@ public:
     void Background();
 
 private:
-    int _Conv;
-    int _Token;
+    unsigned int _Conv;
+    unsigned int _Token;
     long startTime;
     int (*_callback_ptr) (const char* buf, int len, struct IKCPCB* kcp, void* user);
     ConnectionState _State;
     ikcpcb* kcp;
     Context* _ctx;
+    char* _recvBuf;
     std::mutex kcplock;
     std::thread background_thread;
 };
@@ -81,8 +82,8 @@ class Handshake
         const int CONNECT_DATA = 1234567890;
 
         int Magic1;
-        int Conv;
-        int Token;
+        unsigned int Conv;
+        unsigned int Token;
         int Data;
         int Magic2;
 
