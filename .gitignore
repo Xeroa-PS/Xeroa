@@ -1,0 +1,14 @@
+
+# Meme ruining the CWD
+x64/
+src/Debug
+src/CMakeFiles
+src/Xeroa.dir
+CMAkeFiles/
+.vs/
+ALL_BUILD.*
+ZERO_CHECK.*
+CMakeCache.txt
+cmake_install.cmake
+src/*.sln
+src/Xeroa.v*

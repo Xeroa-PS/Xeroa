@@ -1,0 +1,1 @@
+cmake . -DBoost_INCLUDE_DIR="C:\Program Files\boost" -G="Visual Studio 17 2022" -A="x64"
