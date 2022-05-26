@@ -44,6 +44,7 @@ public:
     };
 
     Kcp(int conv = 0, int token = 0, void* ctx = nullptr);
+    ~Kcp();
 
     void SetCallback(int (*_callback_ptr)(const char* buf, int len, struct IKCPCB* kcp, void* user));
     void SetContext(Context* ctx);
@@ -51,14 +52,17 @@ public:
     void AcceptNonblock();
 
     int Input(char* buffer, long len);
+    std::span<uint8_t> Recv();
     int Send(std::span<uint8_t> buffer);
 
     void Initialize();
     void Background();
+    unsigned long ip_port_num;
 
 private:
     unsigned int _Conv;
     unsigned int _Token;
+    long lastPacketTime;
     long startTime;
     int (*_callback_ptr) (const char* buf, int len, struct IKCPCB* kcp, void* user);
     ConnectionState _State;

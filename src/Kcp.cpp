@@ -1,37 +1,43 @@
 #include "Kcp.h"
 #include <memory>
 
+extern boost::unordered_map<unsigned long, Kcp*> g_Clients;
+
 Kcp::Kcp(int conv, int token, void* ctx_ptr)
 {
 	_Conv = conv;
 	_Token = token;
 	startTime = time(0);
-	_recvBuf = (char*)malloc(65535);
+	_recvBuf = (char*)malloc(65534);
+}
+
+Kcp::~Kcp()
+{
+	g_Clients.erase(ip_port_num);
+	_State = Kcp::ConnectionState::DISCONNECTED;
+	ikcp_release(kcp);
+	free(_recvBuf);
+	free(_ctx);
 }
 
 void Kcp::Background()
 {
 	for (;;)
 	{
-		if (_State != Kcp::ConnectionState::CONNECTED)
+		if (_State != Kcp::ConnectionState::CONNECTED || (time(0) - lastPacketTime) > 20)
+		{
+			_State = Kcp::ConnectionState::DISCONNECTED;
+			delete this;
 			return;
-		
-		kcplock.lock();
+		}
+		//kcplock.lock();
 
 		//int dur;
 		//dur = (int)(ikcp_check(kcp, (unsigned int)(time(0) - startTime)) & 0xFFFF);
 
 		ikcp_update(kcp, time(0));
-		
-		int sz = ikcp_peeksize(kcp);
-		if (sz && sz != -1)
-		{
-			int bufSz = 0;
-			ikcp_recv(kcp, _recvBuf, bufSz);
-			//printf("Received KCP Message: %s", _recvBuf);
-		}
 
-		kcplock.unlock();
+		//kcplock.unlock();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
@@ -47,11 +53,27 @@ void Kcp::SetContext(Context* ctx)
 	this->_ctx = ctx;
 }
 
+std::span<uint8_t> Kcp::Recv()
+{
+	int sz = ikcp_peeksize(kcp);
+	if (sz && sz != -1)
+	{
+		int result = ikcp_recv(kcp, _recvBuf, sz);
+		if (result > 0)
+		{
+			return { (uint8_t*)_recvBuf, (size_t)result };
+		}
+	}
+	return {(uint8_t*)0, 0};
+}
+
 int Kcp::Input(char* buffer, long len)
 {
 	int status = 0;
 	Handshake handshake;
 	std::span<uint8_t> handshake_result;
+
+	lastPacketTime = time(0);
 
 	switch (_State)
 	{
@@ -67,11 +89,11 @@ int Kcp::Input(char* buffer, long len)
 			status = ikcp_input(this->kcp, buffer, len);
 			if (status == -1)
 			{
-				_State = Kcp::ConnectionState::CLOSED;
+				//_State = Kcp::ConnectionState::CLOSED;
 				//abort connection here
 			}
+			break;
 		case Kcp::ConnectionState::HANDSHAKE_WAIT:
-
 			_Conv = (time(0) & 0xFFFFFFFF);
 			_Token = 0xFFCCEEBB ^ ((time(0) >> 32) & 0xFFFFFFFF);
 
@@ -99,10 +121,10 @@ int Kcp::Input(char* buffer, long len)
 
 int Kcp::Send(std::span<uint8_t> buffer)
 {
-	kcplock.lock();
+	//kcplock.lock();
 	int ret = ikcp_send(kcp, (char*)buffer.data(), buffer.size());
 	ikcp_flush(kcp);
-	kcplock.unlock();
+	//kcplock.unlock();
 
 	return ret;
 }
@@ -113,7 +135,7 @@ void Kcp::AcceptNonblock()
 void Kcp::Initialize()
 {
 	kcp = ikcp_create(_Conv, _Token, _ctx);
-	ikcp_nodelay(kcp, 1, 10, 2, 0);
+	ikcp_nodelay(kcp, 1, 10, 2, 1);
 	ikcp_wndsize(kcp, 256, 256);
 	ikcp_setoutput(kcp, _callback_ptr);
 	_State = Kcp::ConnectionState::CONNECTED;

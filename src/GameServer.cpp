@@ -13,11 +13,14 @@ using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
+boost::unordered_map<unsigned long, Kcp*> g_Clients;
+
 int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
 {
     if(user)
     {
         auto ctx = (Context*)user;
+        printf("[GameServer::UdpOutput] Sending message to %s:%d\n", ctx->endpoint.address().to_string().c_str(), ctx->endpoint.port());
         co_spawn(
             ctx->socket->get_executor(),
             [ctx,buf,len]
@@ -45,7 +48,7 @@ awaitable<void> GameServer::AsyncOnReceive()
 {
     try
     {
-        std::array<std::uint8_t, 4096> pktBuffer;
+        std::array<std::uint8_t, 65534> pktBuffer;
 
         for (;;)
         {
@@ -63,14 +66,15 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
     BufferView Packet(buffer);
     try
     {
-        printf("[GameServer::ParsePacket] Received data from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), buffer.data());
-        if (clients.find( this->m_CurEndpoint.data() ) == clients.end() )
+        unsigned long ip_port_num = this->m_CurEndpoint.address().to_v4().to_uint() + this->m_CurEndpoint.port();
+
+        //printf("[GameServer::ParsePacket] Received data from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), buffer.data());
+        if (g_Clients.find( ip_port_num ) == g_Clients.end() )
         {
             Handshake handshake;
             if (handshake.Decode(Packet, true))
             {
                 printf("[GameServer::ParsePacket] New connection from %s:%d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port());
-
 
                 Context* ctx = (Context*)malloc(sizeof(Context));
                 ctx->endpoint = m_CurEndpoint;
@@ -81,16 +85,20 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
                 kcp->SetContext(ctx);
                 kcp->AcceptNonblock();
                 kcp->Input((char*)buffer.data(), buffer.size());
+                kcp->ip_port_num = ip_port_num;
 
-                clients[this->m_CurEndpoint.data()] = kcp;
+                g_Clients[ip_port_num] = kcp;
             }
         }
         //windy the clients 
         else
         {
-            auto client = clients[this->m_CurEndpoint.data()];
+            auto client = g_Clients[ip_port_num];
             client->Input((char*)buffer.data(), buffer.size());
-            printf("[GameServer::GameServer] Message from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), (char*)buffer.data());
+            auto data = client->Recv();
+
+            //client->Send(data);
+            //printf("[GameServer::ParsePacket] KCP Message from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), (char*)data.data());
         }
     }
     catch (const std::exception& e)

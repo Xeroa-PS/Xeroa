@@ -12,6 +12,8 @@
 #include <Kcp.h>
 #include "BufferView.h"
 
+extern boost::unordered_map<unsigned long, Kcp*> g_Clients;
+
 namespace asio = boost::asio;
 using boost::asio::awaitable;
 using boost::asio::ip::udp;
@@ -27,7 +29,6 @@ private:
 private:
     udp::socket m_Socket;
     udp::endpoint m_CurEndpoint;
-    boost::unordered_map<asio::detail::socket_addr_type*, Kcp*> clients;
 };
 
 #endif  // __GAMESERVER_H_
