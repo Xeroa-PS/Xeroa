@@ -17,6 +17,13 @@
 #include <vector>
 #include <filesystem>
 
+#include "HandlePlayerTokenReq.h"
+#include "HandlePingReq.h"
+#include "Crypto.h"
+
+std::span<uint8_t> DispatchKey;
+std::span<uint8_t> DispatchSeed;
+std::span<uint8_t> SecretKeyBuffer;
 
 using boost::asio::co_spawn;
 using boost::asio::detached;
@@ -24,27 +31,12 @@ using boost::asio::use_awaitable;
 
 boost::unordered_map<unsigned long, Kcp*> g_Clients;
 
-std::span<uint8_t> XorDecrypt(std::span<uint8_t> packet, std::span<uint8_t> key)
-{
-    int packet_size = packet.size();
-    int key_size = key.size();
-
-    auto buf = new char[packet_size]; // also leek
-    memcpy(buf, packet.data(), packet_size);
-
-    for (int i = 0; i < packet_size; i++)
-    {
-        buf[i] ^= key[i % key_size];
-    }
-    return { (uint8_t*)buf, (size_t)packet_size };
-}
-
 int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
 {
     if(user)
     {
         auto ctx = (Context*)user;
-        printf("[GameServer::UdpOutput] Sending message to %s:%d\n", ctx->endpoint.address().to_string().c_str(), ctx->endpoint.port());
+        //printf("[GameServer::UdpOutput] Sending message to %s:%d\n", ctx->endpoint.address().to_string().c_str(), ctx->endpoint.port());
         co_spawn(
             ctx->socket->get_executor(),
             [ctx,buf,len]
@@ -78,7 +70,6 @@ GameServer::GameServer(boost::asio::io_context& io_context, const udp::endpoint&
 {
     DispatchKey = ReadFile("keys\\dispatchKey.bin");
     DispatchSeed = ReadFile("keys\\dispatchSeed.bin");
-    SecretKey = ReadFile("keys\\secretKey.bin");
     SecretKeyBuffer = ReadFile("keys\\secretKeyBuffer.bin");
 
     co_spawn(
@@ -115,7 +106,7 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
     {
         unsigned long ip_port_num = this->m_CurEndpoint.address().to_v4().to_uint() + this->m_CurEndpoint.port();
 
-        //printf("[GameServer::ParsePacket] Received data from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), buffer.data());
+        printf("[GameServer::ParsePacket] Received data from %s:%d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port());
         if (g_Clients.find( ip_port_num ) == g_Clients.end() )
         {
             Handshake handshake;
@@ -127,7 +118,7 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
                 ctx->endpoint = m_CurEndpoint;
                 ctx->socket = &m_Socket;
 
-                Kcp* kcp = new Kcp();
+                Kcp* kcp = new Kcp(m_CurEndpoint);
                 kcp->SetCallback(udp_output);
                 kcp->SetContext(ctx);
                 kcp->AcceptNonblock();
@@ -141,17 +132,39 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
         else
         {
             auto client = g_Clients[ip_port_num];
-            client->Input((char*)buffer.data(), buffer.size());
+            int ret = client->Input((char*)buffer.data(), buffer.size());
             auto data = client->Recv();
-            auto dec_data = XorDecrypt(data, DispatchKey);
-            auto DecPacket = BasePacket(dec_data);
 
-            //client->Send(data);
-            printf("[GameServer::ParsePacket] KCP Message from %s:%d, Packet ID: %d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), DecPacket.m_PacketId);
+            std::span<uint8_t> dec_data;
+
+            if (data.size() > 0)
+            {
+                if(client->ShouldUseMT())
+                    dec_data = Xor(data, client->mt_key);
+                else
+                    dec_data = Xor(data, DispatchKey);
+
+                auto DecPacket = BasePacket(dec_data);
+
+                switch (DecPacket.m_PacketId)
+                {
+                case 160:
+                    HandlePlayerTokenReq(client, DecPacket);
+                    break;
+                case 37:
+                    HandlePingReq(client, DecPacket);
+                    break;
+                default:
+                    break;
+                }
+                printf("[GameServer::ParsePacket] KCP Message from %s:%d, Packet ID: %d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), DecPacket.m_PacketId);
+            }
         }
+
     }
     catch (const std::exception& e)
     {
+        printf("%s\n", e.what());
     }
     co_return; //this is useless this is bullshit it's a fucking void function WHY
 }

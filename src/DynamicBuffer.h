@@ -40,6 +40,7 @@ public:
 
     void WriteArray(std::span<const std::uint8_t> data);
     void WriteToOffsetArray(std::span<const std::uint8_t> data, std::size_t offset);
+    void Seek(std::size_t offset);
 
     [[nodiscard]] std::vector<std::uint8_t>&& GetDataOwnership();
 

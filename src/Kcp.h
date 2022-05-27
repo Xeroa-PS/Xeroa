@@ -43,7 +43,7 @@ public:
         CLOSED, DISCONNECTED, HANDSHAKE_CONNECT, HANDSHAKE_WAIT, CONNECTED
     };
 
-    Kcp(int conv = 0, int token = 0, void* ctx = nullptr);
+    Kcp(udp::endpoint Endpoint, int conv = 0, int token = 0, void* ctx = nullptr);
     ~Kcp();
 
     void SetCallback(int (*_callback_ptr)(const char* buf, int len, struct IKCPCB* kcp, void* user));
@@ -54,10 +54,17 @@ public:
     int Input(char* buffer, long len);
     std::span<uint8_t> Recv();
     int Send(std::span<uint8_t> buffer);
+    int Send(std::vector<uint8_t> buffer);
+
+    bool ShouldUseMT();
+    void SetUseMT(bool state);
+    void GenerateMTKey(unsigned long long seed);
 
     void Initialize();
     void Background();
     unsigned long ip_port_num;
+    udp::endpoint endpoint;
+    std::vector<uint8_t> mt_key;
 
 private:
     unsigned int _Conv;
@@ -71,6 +78,7 @@ private:
     char* _recvBuf;
     std::mutex kcplock;
     std::thread background_thread;
+    bool _ShouldUseMt = false;
 };
 
 class Handshake
@@ -83,7 +91,6 @@ class Handshake
         const int MAGIC_SEND_BACK_CONV[2] = {0x145, 0x14514545};
         const int MAGIC_DISCONNECT[2] = {0x194, 0x19419494};
         const int LEN = 20;
-        const int CONNECT_DATA = 1234567890;
 
         int Magic1;
         unsigned int Conv;

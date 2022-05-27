@@ -6,6 +6,7 @@
 #include <string>
 
 #include "util.h"
+#include <vector>
 
 class BufferView
 {
@@ -22,8 +23,21 @@ public:
         return bigEndian ? ReverseEndianness<DATA_TYPE>(result) : result;
     }
 
+    template <typename T>
+    void Write(T data,
+            bool bigEndian = false) requires std::is_arithmetic<T>::value
+    {
+        auto srcData = bigEndian ? ReverseEndianness<T>(data) : data;
+        auto srcPtr = reinterpret_cast<std::uint8_t*>(&srcData);
+        this->WriteArray(std::span<const std::uint8_t>{ srcPtr, sizeof(T) });
+    }
+
+    void WriteArray(std::span<const std::uint8_t> data);
     [[nodiscard]] std::string ReadString();
     [[nodiscard]] std::string ReadLongString();
+    void GrowBuffer(std::size_t bytesToGrow);
+    [[nodiscard]] std::vector<std::uint8_t>&& GetDataOwnership();
+     
 
     template <typename T, std::size_t ARRAY_SIZE>
     [[nodiscard]] std::array<T, ARRAY_SIZE> ReadArray()
@@ -57,6 +71,8 @@ protected:
     }
 
     void ReadImpl(std::span<std::uint8_t> outData);
+private:
+    std::vector<std::uint8_t> m_Buffer;
 };
 
 #endif  // __BUFFERVIEW_H_

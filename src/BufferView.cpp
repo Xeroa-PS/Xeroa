@@ -90,3 +90,28 @@ void BufferView::ReadImpl(std::span<std::uint8_t> outData)
     std::copy(dataStart, dataStart + outData.size_bytes(), outData.begin());
     this->m_CurDataOffset += outData.size_bytes();
 }
+
+void BufferView::WriteArray(std::span<const std::uint8_t> data)
+{
+    auto predictedBufSize = this->m_CurDataOffset + data.size_bytes();
+
+    if (predictedBufSize >= this->m_Buffer.capacity())
+    {
+        auto sizeAvail = predictedBufSize - this->m_Buffer.capacity();
+        this->GrowBuffer(sizeAvail);
+    }
+
+    this->m_Buffer.insert(this->m_Buffer.end(), data.begin(), data.end());
+    this->m_CurDataOffset += data.size_bytes();
+}
+
+void BufferView::GrowBuffer(std::size_t bytesToGrow)
+{
+    auto newSize = this->m_Buffer.capacity() + bytesToGrow;
+    this->m_Buffer.reserve(newSize);
+}
+
+std::vector<std::uint8_t>&& BufferView::GetDataOwnership()
+{
+    return std::move(this->m_Buffer);
+}

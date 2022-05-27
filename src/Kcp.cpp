@@ -1,14 +1,16 @@
 #include "Kcp.h"
 #include <memory>
+#include <Crypto.h>
 
 extern boost::unordered_map<unsigned long, Kcp*> g_Clients;
 
-Kcp::Kcp(int conv, int token, void* ctx_ptr)
+Kcp::Kcp(udp::endpoint Endpoint, int conv, int token, void* ctx_ptr)
 {
 	_Conv = conv;
 	_Token = token;
 	startTime = time(0);
 	_recvBuf = (char*)malloc(65534);
+	endpoint = Endpoint;
 }
 
 Kcp::~Kcp()
@@ -30,14 +32,14 @@ void Kcp::Background()
 			delete this;
 			return;
 		}
-		//kcplock.lock();
+		kcplock.lock();
 
 		//int dur;
 		//dur = (int)(ikcp_check(kcp, (unsigned int)(time(0) - startTime)) & 0xFFFF);
 
 		ikcp_update(kcp, time(0));
 
-		//kcplock.unlock();
+		kcplock.unlock();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
@@ -121,13 +123,24 @@ int Kcp::Input(char* buffer, long len)
 
 int Kcp::Send(std::span<uint8_t> buffer)
 {
-	//kcplock.lock();
+	kcplock.lock();
 	int ret = ikcp_send(kcp, (char*)buffer.data(), buffer.size());
 	ikcp_flush(kcp);
-	//kcplock.unlock();
+	kcplock.unlock();
 
 	return ret;
 }
+
+int Kcp::Send(std::vector<uint8_t> buffer)
+{
+	kcplock.lock();
+	int ret = ikcp_send(kcp, (char*)buffer.data(), buffer.size());
+	ikcp_flush(kcp);
+	kcplock.unlock();
+
+	return ret;
+}
+
 void Kcp::AcceptNonblock()
 {
 	_State = Kcp::ConnectionState::HANDSHAKE_WAIT;
@@ -141,6 +154,19 @@ void Kcp::Initialize()
 	_State = Kcp::ConnectionState::CONNECTED;
 	background_thread = std::thread(&Kcp::Background, this);
 	background_thread.detach();
+}
+
+bool Kcp::ShouldUseMT()
+{
+	return _ShouldUseMt;
+}
+void Kcp::SetUseMT(bool state)
+{
+	_ShouldUseMt = state;
+}
+void Kcp::GenerateMTKey(unsigned long long seed)
+{
+	mt_key = generateKey(seed);
 }
 
 Handshake::Handshake(int* magic, int conv, int data, int token)

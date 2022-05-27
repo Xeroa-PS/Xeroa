@@ -54,8 +54,7 @@ void DynamicBuffer::WriteArray(std::span<const std::uint8_t> data)
 void DynamicBuffer::WriteToOffsetArray(std::span<const std::uint8_t> data,
     std::size_t offset)
 {
-    if (offset >= this->m_Buffer.size() ||
-        offset + data.size_bytes() >= this->m_Buffer.size())
+    if (offset >= this->m_Buffer.size() || offset + data.size_bytes() >= this->m_Buffer.size() || offset >= this->m_Buffer.capacity() || offset + data.size_bytes() >= this->m_Buffer.capacity())
     {
         throw std::runtime_error("Offset is out of buffer bounds");
     }
@@ -67,6 +66,11 @@ void DynamicBuffer::GrowBuffer(std::size_t bytesToGrow)
 {
     auto newSize = this->m_Buffer.capacity() + bytesToGrow;
     this->m_Buffer.reserve(newSize);
+}
+
+void DynamicBuffer::Seek(std::size_t offset)
+{
+    this->m_CurOffset = offset;
 }
 
 std::vector<std::uint8_t>&& DynamicBuffer::GetDataOwnership()

@@ -24,11 +24,6 @@ public:
     GameServer(asio::io_context& io_context, const udp::endpoint& endpoint);
     [[nodiscard]] std::uint16_t GetPort() const;
 
-    std::span<uint8_t> DispatchKey;
-    std::span<uint8_t> DispatchSeed;
-    std::span<uint8_t> SecretKey;
-    std::span<uint8_t> SecretKeyBuffer;
-
 private:
     awaitable<void> AsyncOnReceive();
     awaitable<void> ParsePacket(std::span<uint8_t> buffer);
