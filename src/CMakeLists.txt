@@ -15,6 +15,7 @@ set (XEROA_SOURCES
 	./Kcp.cpp
 	./BufferView.cpp
 	./DynamicBuffer.cpp
+	./BasePacket.cpp
 )
 
 add_executable (Xeroa ${XEROA_SOURCES})

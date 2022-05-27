@@ -61,7 +61,7 @@ std::span<uint8_t> Kcp::Recv()
 		int result = ikcp_recv(kcp, _recvBuf, sz);
 		if (result > 0)
 		{
-			return { (uint8_t*)_recvBuf, (size_t)result };
+			return { std::move((uint8_t*)_recvBuf), (size_t)result };
 		}
 	}
 	return {(uint8_t*)0, 0};

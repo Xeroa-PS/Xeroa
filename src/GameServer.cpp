@@ -1,4 +1,5 @@
 #include "GameServer.h"
+#include "BasePacket.h"
 
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -9,11 +10,34 @@
 #include <array>
 #include <stdexcept>
 
+#include <fstream>
+#include <iterator>
+#include <iostream>
+
+#include <vector>
+#include <filesystem>
+
+
 using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
 boost::unordered_map<unsigned long, Kcp*> g_Clients;
+
+std::span<uint8_t> XorDecrypt(std::span<uint8_t> packet, std::span<uint8_t> key)
+{
+    int packet_size = packet.size();
+    int key_size = key.size();
+
+    auto buf = new char[packet_size]; // also leek
+    memcpy(buf, packet.data(), packet_size);
+
+    for (int i = 0; i < packet_size; i++)
+    {
+        buf[i] ^= key[i % key_size];
+    }
+    return { (uint8_t*)buf, (size_t)packet_size };
+}
 
 int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
 {
@@ -32,8 +56,31 @@ int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
     return 0;
 }
 
+std::span<uint8_t> ReadFile(const char* filename)
+{
+    long long size;
+    std::ifstream file(filename, std::ios::binary | std::ios::in);
+    file.ignore(std::numeric_limits<std::streamsize>::max());
+
+    file.seekg(0, std::ios::end);
+    size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    auto buf = (uint8_t*)malloc(size); //memory leek
+
+    file.read((char*)buf, size);
+    file.close();
+
+    return { buf, (size_t)size };
+}
+
 GameServer::GameServer(boost::asio::io_context& io_context, const udp::endpoint& endpoint) : m_Socket(io_context, endpoint)
 {
+    DispatchKey = ReadFile("keys\\dispatchKey.bin");
+    DispatchSeed = ReadFile("keys\\dispatchSeed.bin");
+    SecretKey = ReadFile("keys\\secretKey.bin");
+    SecretKeyBuffer = ReadFile("keys\\secretKeyBuffer.bin");
+
     co_spawn(
         this->m_Socket.get_executor(),
         [this] {
@@ -96,9 +143,11 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
             auto client = g_Clients[ip_port_num];
             client->Input((char*)buffer.data(), buffer.size());
             auto data = client->Recv();
+            auto dec_data = XorDecrypt(data, DispatchKey);
+            auto DecPacket = BasePacket(dec_data);
 
             //client->Send(data);
-            //printf("[GameServer::ParsePacket] KCP Message from %s:%d: %s\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), (char*)data.data());
+            printf("[GameServer::ParsePacket] KCP Message from %s:%d, Packet ID: %d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), DecPacket.m_PacketId);
         }
     }
     catch (const std::exception& e)

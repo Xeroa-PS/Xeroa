@@ -55,6 +55,9 @@ HttpServer::HttpServer(asio::io_context& io_context, tcp::endpoint endpoint)
         fail(ec, "listen");
         return;
     }
+
+    printf("[HttpServer::HttpServer] listening on %s:%d\n",
+        endpoint.address().to_string().c_str(), endpoint.port());
 }
 
 void HttpServer::run()
