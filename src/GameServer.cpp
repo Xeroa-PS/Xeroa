@@ -17,8 +17,6 @@
 #include <vector>
 #include <filesystem>
 
-#include "HandlePlayerTokenReq.h"
-#include "HandlePingReq.h"
 #include "Crypto.h"
 
 std::span<uint8_t> DispatchKey;
@@ -26,6 +24,7 @@ std::span<uint8_t> DispatchSeed;
 std::span<uint8_t> SecretKeyBuffer;
 
 using boost::asio::co_spawn;
+using boost::asio::write;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
 
@@ -36,14 +35,9 @@ int udp_output(const char* buf, int len, ikcpcb* kcp, void* user)
     if(user)
     {
         auto ctx = (Context*)user;
-        //printf("[GameServer::UdpOutput] Sending message to %s:%d\n", ctx->endpoint.address().to_string().c_str(), ctx->endpoint.port());
-        co_spawn(
-            ctx->socket->get_executor(),
-            [ctx,buf,len]
-            {
-                return ctx->socket->async_send_to(asio::const_buffer(buf,len), ctx->endpoint, use_awaitable);
-            }
-            , detached);
+        ctx->socket->send_to(asio::const_buffer(buf, len), ctx->endpoint);
+        printf("[GameServer::UdpOutput] Sending data to %s:%d\n", ctx->endpoint.address().to_string().c_str(), ctx->endpoint.port());
+        //boost::asio::write(ctx->socket, asio::const_buffer(buf, len), ctx->endpoint);
     }
     return 0;
 }
@@ -146,17 +140,8 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
 
                 auto DecPacket = BasePacket(dec_data);
 
-                switch (DecPacket.m_PacketId)
-                {
-                case 160:
-                    HandlePlayerTokenReq(client, DecPacket);
-                    break;
-                case 37:
-                    HandlePingReq(client, DecPacket);
-                    break;
-                default:
-                    break;
-                }
+                client->packet_queue.push_front(DecPacket);
+
                 printf("[GameServer::ParsePacket] KCP Message from %s:%d, Packet ID: %d\n", this->m_CurEndpoint.address().to_string().c_str(), this->m_CurEndpoint.port(), DecPacket.m_PacketId);
             }
         }
@@ -166,5 +151,5 @@ awaitable<void> GameServer::ParsePacket(std::span<uint8_t> buffer)
     {
         printf("%s\n", e.what());
     }
-    co_return; //this is useless this is bullshit it's a fucking void function WHY
+    co_return;
 }

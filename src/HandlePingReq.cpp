@@ -4,8 +4,6 @@
 #include <PingReq.pb.h>
 #include <PingRsp.pb.h>
 
-extern std::span<uint8_t> DispatchKey;
-
 void HandlePingReq(Kcp* client, BasePacket packet)
 {
     auto data = packet.m_Data;
@@ -23,7 +21,7 @@ void HandlePingReq(Kcp* client, BasePacket packet)
     std::span<uint8_t> buf_span{ (uint8_t*)buf_ptr, (size_t)size };
 
     BasePacket ping_rsp_packet(buf_span, 93, packet.m_Metadata.client_sequence_id());
-    
+
     auto encrypted = ping_rsp_packet.GetDataOwnership();
     client->Send(Xor(encrypted, client->mt_key));
 

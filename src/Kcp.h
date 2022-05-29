@@ -4,6 +4,7 @@
 #include <time.h>
 #include <ikcp.h>
 
+#include <deque>
 #include <mutex>
 
 #include <boost/asio/buffer.hpp>
@@ -19,6 +20,8 @@
 
 #include "BufferView.h"
 #include <DynamicBuffer.h>
+
+#include "BasePacket.h"
 
 using boost::asio::awaitable;
 
@@ -62,9 +65,12 @@ public:
 
     void Initialize();
     void Background();
+    void PacketQueueHandler();
     unsigned long ip_port_num;
     udp::endpoint endpoint;
     std::vector<uint8_t> mt_key;
+    std::deque<BasePacket> packet_queue;
+    std::mutex kcplock;
 
 private:
     unsigned int _Conv;
@@ -76,8 +82,9 @@ private:
     ikcpcb* kcp;
     Context* _ctx;
     char* _recvBuf;
-    std::mutex kcplock;
+
     std::thread background_thread;
+    std::thread packet_handler_thread;
     bool _ShouldUseMt = false;
 };
 

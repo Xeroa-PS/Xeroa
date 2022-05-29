@@ -2,6 +2,9 @@
 #include <memory>
 #include <Crypto.h>
 
+#include "HandlePlayerTokenReq.h"
+#include "HandlePingReq.h"
+
 extern boost::unordered_map<unsigned long, Kcp*> g_Clients;
 
 Kcp::Kcp(udp::endpoint Endpoint, int conv, int token, void* ctx_ptr)
@@ -32,16 +35,41 @@ void Kcp::Background()
 			delete this;
 			return;
 		}
-		kcplock.lock();
-
-		//int dur;
-		//dur = (int)(ikcp_check(kcp, (unsigned int)(time(0) - startTime)) & 0xFFFF);
+		//kcplock.lock();
 
 		ikcp_update(kcp, time(0));
-
-		kcplock.unlock();
+		//kcplock.unlock();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+}
+
+void Kcp::PacketQueueHandler()
+{
+	for (;;)
+	{
+		if (_State != Kcp::ConnectionState::CONNECTED)
+		{
+			return;
+		}
+
+		if (!this->packet_queue.empty())
+		{
+			BasePacket packet = this->packet_queue.back();
+			this->packet_queue.pop_back();
+
+			switch (packet.m_PacketId)
+			{
+			case 160:
+				HandlePlayerTokenReq(this, packet);
+				break;
+			case 37:
+				HandlePingReq(this, packet);
+				break;
+			default:
+				break;
+			}
+		}
 	}
 }
 
@@ -105,13 +133,7 @@ int Kcp::Input(char* buffer, long len)
 			handshake.Conv = _Conv;
 			handshake.Token = _Token;
 			handshake_result = handshake.Encode();
-
-			co_spawn(
-				_ctx->socket->get_executor(),
-				[this, handshake_result]
-				{
-					return _ctx->socket->async_send_to(asio::const_buffer(handshake_result.data(), handshake_result.size()), _ctx->endpoint, use_awaitable);
-				}, detached);
+			_ctx->socket->send_to(asio::const_buffer(handshake_result.data(), handshake_result.size()), _ctx->endpoint);
 			Initialize();
 			status = 0;
 
@@ -123,20 +145,20 @@ int Kcp::Input(char* buffer, long len)
 
 int Kcp::Send(std::span<uint8_t> buffer)
 {
-	kcplock.lock();
+	//kcplock.lock();
 	int ret = ikcp_send(kcp, (char*)buffer.data(), buffer.size());
 	ikcp_flush(kcp);
-	kcplock.unlock();
+	//kcplock.unlock();
 
 	return ret;
 }
 
 int Kcp::Send(std::vector<uint8_t> buffer)
 {
-	kcplock.lock();
+	//kcplock.lock();
 	int ret = ikcp_send(kcp, (char*)buffer.data(), buffer.size());
 	ikcp_flush(kcp);
-	kcplock.unlock();
+	//kcplock.unlock();
 
 	return ret;
 }
@@ -149,11 +171,15 @@ void Kcp::Initialize()
 {
 	kcp = ikcp_create(_Conv, _Token, _ctx);
 	ikcp_nodelay(kcp, 1, 10, 2, 1);
-	ikcp_wndsize(kcp, 256, 256);
+	ikcp_wndsize(kcp, 4096, 4096);
 	ikcp_setoutput(kcp, _callback_ptr);
 	_State = Kcp::ConnectionState::CONNECTED;
+
 	background_thread = std::thread(&Kcp::Background, this);
 	background_thread.detach();
+
+	packet_handler_thread = std::thread(&Kcp::PacketQueueHandler, this);
+	packet_handler_thread.detach();
 }
 
 bool Kcp::ShouldUseMT()
@@ -214,5 +240,5 @@ std::span<uint8_t> Handshake::Encode()
 	bufRef.Write<std::uint32_t>(Data, true);
 	bufRef.Write<std::uint32_t>(Magic2, true);
 
-	return { bufRef.GetDataOwnership().data(), 20};
+	return { bufRef.GetDataOwnership().data(), 20 };
 }

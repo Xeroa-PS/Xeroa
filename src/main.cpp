@@ -9,13 +9,23 @@
 
 #include "GameServer.h"
 #include "HttpServer.h"
+#include "Crypto.h"
 
 int main()
 {
+    /*
+    auto key = generateKey(0);
+
+    FILE* fp = fopen("XorKey0.bin", "wb");
+    fwrite(key.data(), key.size(), 1, fp);
+    fclose(fp);
+    */
+
+
     auto const address = asio::ip::make_address("0.0.0.0");
 
     auto const dispatch_port = 8080;
-    auto const kcp_port = 2212;
+    auto const kcp_port = 22102;
 
     int threads = 16;
 

@@ -21,6 +21,7 @@ set (XEROA_SOURCES
 add_executable (Xeroa ${XEROA_SOURCES})
 
 target_include_directories (Xeroa PUBLIC
+	${Protobuf_INCLUDE_DIRS}
 	${Boost_INCLUDE_DIR}
 	${CMAKE_SOURCE_DIR}/external/kcp
 	.
