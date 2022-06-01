@@ -7,9 +7,8 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 
-#include "GameServer.h"
-#include "HttpServer.h"
-#include "Crypto.h"
+#include "game/GameServer.h"
+#include "http/HttpServer.h"
 
 int main()
 {
@@ -25,7 +24,7 @@ int main()
     auto const address = asio::ip::make_address("0.0.0.0");
 
     auto const dispatch_port = 8080;
-    auto const kcp_port = 22102;
+    auto const kcp_port = 22103;
 
     int threads = 16;
 
